@@ -1,0 +1,509 @@
+####################################################
+* If you want to create a project like in the video, besides following this code, I highly recommend that you also follow the steps as in the video, so that you understand the steps better.
+* To make this project, make sure that your Arduino IDE has an ESP32 board installed in the "Board Manager", if you haven't already, see here for how to install it : https://www.youtube.com/watch?v=To3TIOFX6cA
+* If between ESP32 has the same MAC Address or you want to change the MAC Address of ESP32, see here: https://randomnerdtutorials.com/get-change-esp32-esp8266-mac-address-arduino/
+####################################################
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Getting_the_Boards_MAC_Address
+//----------------------------------------Load libraries
+#include "WiFi.h"
+//----------------------------------------
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID SETUP
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  WiFi.mode(WIFI_MODE_STA);
+  Serial.println(WiFi.macAddress());
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID LOOP
+void loop() {
+  // put your main code here, to run repeatedly:
+
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> One-way communication ESP32 Sender
+/*
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp-now-two-way-communication-esp32/
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files.
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+*/
+
+//----------------------------------------Load libraries
+#include <esp_now.h>
+#include <WiFi.h>
+//----------------------------------------
+
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; //--> REPLACE WITH THE MAC Address of your receiver / ESP32 Receiver.
+
+//----------------------------------------Variables to accommodate the data to be sent.
+int send_rnd_val_1;
+int send_rnd_val_2;
+//----------------------------------------
+
+String success; //--> Variable to store if sending data was successful.
+
+//----------------------------------------Structure example to send data
+// Must match the receiver structure
+typedef struct struct_message {
+    int rnd_1;
+    int rnd_2;
+} struct_message;
+
+struct_message send_Data; //--> Create a struct_message to send data.
+//----------------------------------------
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status ==0){
+    success = "Delivery Success :)";
+  }
+  else{
+    success = "Delivery Fail :(";
+  }
+  Serial.println(">>>>>");
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID SETUP
+void setup() {
+  Serial.begin(115200);
+ 
+  WiFi.mode(WIFI_STA); //--> Set device as a Wi-Fi Station.
+
+  //----------------------------------------Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  //----------------------------------------
+  
+  //----------------------------------------Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  //----------------------------------------
+  
+  //----------------------------------------Register peer
+  esp_now_peer_info_t peerInfo;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+  //----------------------------------------
+  
+  //----------------------------------------Add peer        
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+  //----------------------------------------
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID LOOP
+void loop() {
+  //----------------------------------------Set values to send
+  send_rnd_val_1 = random(0, 255);
+  send_rnd_val_2 = random(0, 255);
+  send_Data.rnd_1 = send_rnd_val_1;
+  send_Data.rnd_2 = send_rnd_val_2;
+  //----------------------------------------
+  
+  Serial.println();
+  Serial.print(">>>>> ");
+  Serial.println("Send data");
+
+  //----------------------------------------Send message via ESP-NOW
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &send_Data, sizeof(send_Data));
+   
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
+  }
+  //----------------------------------------
+  
+  delay(5000);
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> One-way communication ESP32 Receiver
+/*
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp-now-two-way-communication-esp32/
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files.
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+*/
+
+//----------------------------------------Load libraries
+#include <esp_now.h>
+#include <WiFi.h>
+//----------------------------------------
+
+//----------------------------------------Define variables to store incoming readings
+int receive_rnd_val_1;
+int receive_rnd_val_2;
+//----------------------------------------
+
+//----------------------------------------Structure example to receive data
+// Must match the sender structure
+typedef struct struct_message {
+    int rnd_1;
+    int rnd_2;
+} struct_message;
+
+struct_message receive_Data; //--> Create a struct_message to receive data.
+//----------------------------------------
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Callback when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&receive_Data, incomingData, sizeof(receive_Data));
+  Serial.println();
+  Serial.println("<<<<< Receive Data:");
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  receive_rnd_val_1 = receive_Data.rnd_1;
+  receive_rnd_val_2 = receive_Data.rnd_2;
+  Serial.println("Receive Data: ");
+  Serial.println(receive_rnd_val_1);
+  Serial.println(receive_rnd_val_2);
+  Serial.println("<<<<<");
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID SETUP
+void setup() {
+  Serial.begin(115200);
+  
+  WiFi.mode(WIFI_STA); //--> Set device as a Wi-Fi Station
+
+  //----------------------------------------Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  //----------------------------------------
+  
+  esp_now_register_recv_cb(OnDataRecv); //--> Register for a callback function that will be called when data is received
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID LOOP
+void loop() {
+  
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Two-Way communication ESP32
+/*
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp-now-two-way-communication-esp32/
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files.
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+*/
+
+//----------------------------------------Load libraries
+#include <esp_now.h>
+#include <WiFi.h>
+//----------------------------------------
+
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; //--> REPLACE WITH THE MAC Address of your receiver.
+
+//----------------------------------------Variables to accommodate the data to be sent.
+int send_rnd_val_1;
+int send_rnd_val_2;
+//----------------------------------------
+
+//----------------------------------------Define variables to store incoming readings
+int receive_rnd_val_1;
+int receive_rnd_val_2;
+//----------------------------------------
+
+String success; //--> Variable to store if sending data was successful
+
+//----------------------------------------Structure example to send data
+// Must match with ESP32 paired.
+typedef struct struct_message {
+    int rnd_1;
+    int rnd_2;
+} struct_message;
+
+struct_message send_Data; // Create a struct_message to send data.
+
+struct_message receive_Data; // Create a struct_message to receive data.
+//----------------------------------------
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status ==0){
+    success = "Delivery Success :)";
+  }
+  else{
+    success = "Delivery Fail :(";
+  }
+  Serial.println(">>>>>");
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Callback when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&receive_Data, incomingData, sizeof(receive_Data));
+  Serial.println();
+  Serial.println("<<<<< Receive Data:");
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  receive_rnd_val_1 = receive_Data.rnd_1;
+  receive_rnd_val_2 = receive_Data.rnd_2;
+  Serial.println("Receive Data: ");
+  Serial.println(receive_rnd_val_1);
+  Serial.println(receive_rnd_val_2);
+  Serial.println("<<<<<");
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void setup() {
+  Serial.begin(115200);
+  
+  WiFi.mode(WIFI_STA); //--> Set device as a Wi-Fi Station
+
+  //----------------------------------------Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  //----------------------------------------
+  
+  //----------------------------------------Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  //----------------------------------------
+  
+  //----------------------------------------Register peer
+  esp_now_peer_info_t peerInfo;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+  //----------------------------------------
+  
+  //----------------------------------------Add peer        
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+  //----------------------------------------
+  
+  esp_now_register_recv_cb(OnDataRecv); //--> Register for a callback function that will be called when data is received
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void loop() {
+  //----------------------------------------Set values to send
+  send_rnd_val_1 = random(0, 255);
+  send_rnd_val_2 = random(0, 255);
+  send_Data.rnd_1 = send_rnd_val_1;
+  send_Data.rnd_2 = send_rnd_val_2;
+  //----------------------------------------
+  
+  Serial.println();
+  Serial.print(">>>>> ");
+  Serial.println("Send data");
+
+  //----------------------------------------Send message via ESP-NOW
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &send_Data, sizeof(send_Data));
+   
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
+  }
+  //----------------------------------------
+  
+  delay(5000);
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Two-Way communication ESP32 to Control LED
+//----------------------------------------Load libraries
+#include <esp_now.h>
+#include <WiFi.h>
+//----------------------------------------
+
+//----------------------------------------Defines PIN Button and PIN LED.
+#define LED_Pin   4
+#define BTN_Pin   15
+//----------------------------------------
+
+int BTN_State; //--> Variable to hold the button state.
+
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; //--> REPLACE WITH THE MAC Address of your receiver.
+
+int LED_State_Send = 0; //--> Variable to hold the data to be transmitted to control the LEDs on the paired ESP32.
+
+int LED_State_Receive; //--> Variable to receive data to control the LEDs on the ESP32 running this code.
+
+String success; //--> Variable to store if sending data was successful
+
+//----------------------------------------Structure example to send data
+//Must match the receiver structure
+typedef struct struct_message {
+    int led;
+} struct_message_send;
+
+struct_message send_Data; // Create a struct_message to send data.
+
+struct_message receive_Data; // Create a struct_message to receive data.
+//----------------------------------------
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status ==0){
+    success = "Delivery Success :)";
+  }
+  else{
+    success = "Delivery Fail :(";
+  }
+  Serial.println(">>>>>");
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Callback when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&receive_Data, incomingData, sizeof(receive_Data));
+  Serial.println();
+  Serial.println("<<<<< Receive Data:");
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  LED_State_Receive = receive_Data.led;
+  Serial.print("Receive Data: ");
+  Serial.println(LED_State_Receive);
+  Serial.println("<<<<<");
+
+  digitalWrite(LED_Pin, LED_State_Receive);
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ VOID SETUP
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(LED_Pin, OUTPUT);
+  pinMode(BTN_Pin, INPUT);
+  
+  WiFi.mode(WIFI_STA); //--> Set device as a Wi-Fi Station
+
+  //----------------------------------------Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  //----------------------------------------
+  
+  //----------------------------------------Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  //----------------------------------------
+  
+  //----------------------------------------Register peer
+  esp_now_peer_info_t peerInfo;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+  //----------------------------------------
+  
+  //----------------------------------------Add peer        
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+  //----------------------------------------
+  
+  esp_now_register_recv_cb(OnDataRecv); //--> Register for a callback function that will be called when data is received
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void loop() {
+  BTN_State = digitalRead(BTN_Pin); //--> Reads and holds button states.
+  
+  //----------------------------------------When the button is pressed it will send data to control the LED on the ESP32 Target.
+  if(BTN_State == 1) {
+    LED_State_Send = !LED_State_Send;
+    send_Data.led = LED_State_Send;
+
+    Serial.println();
+    Serial.print(">>>>> ");
+    Serial.println("Send data");
+  
+    //----------------------------------------Send message via ESP-NOW
+    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &send_Data, sizeof(send_Data));
+     
+    if (result == ESP_OK) {
+      Serial.println("Sent with success");
+    }
+    else {
+      Serial.println("Error sending the data");
+    }
+    //----------------------------------------
+    
+    //----------------------------------------Wait for the button to be released. Release the button first to send the next data.
+    while(BTN_State == 1) {
+      BTN_State = digitalRead(BTN_Pin);
+      delay(10);
+    }
+    //----------------------------------------
+  }
+  //----------------------------------------
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
