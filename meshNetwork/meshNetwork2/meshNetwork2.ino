@@ -12,7 +12,7 @@ void sendmsg() ;
 Task taskSendmsg( TASK_SECOND * 1 , TASK_FOREVER, &sendmsg );
 
 void sendmsg() {
-  String msg = "This is a testing message from Node1  ";
+  String msg = "This is a testing message from Node2  ";
   msg += mesh.getNodeId();
   mesh.sendBroadcast( msg );
   taskSendmsg.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));

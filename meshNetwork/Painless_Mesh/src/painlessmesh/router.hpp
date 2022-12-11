@@ -53,7 +53,7 @@ bool send(T package, layout::Layout<U> layout) {
   auto variant = painlessmesh::protocol::Variant(package);
   TSTRING msg;
   variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest);
+  auto conn = findRoute<U>(layout, variant.dest());
   if (conn) return conn->addMessage(msg);
   return false;
 }
@@ -108,7 +108,7 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
   // Bug in copy constructor with grown capacity can cause segmentation fault
   auto variant =
       std::make_shared<protocol::Variant>(pkg, pkg.length() + baseCapacity);
-  while (variant->error == 3 && baseCapacity <= 20480) {
+  while (variant->error == DeserializationError::NoMemory && baseCapacity <= 20480) {
     // Not enough memory, adapt scaling (variant::capacityScaling) and log the
     // new value
     Log(DEBUG,
@@ -158,8 +158,8 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
       conn->close();
       return;
     }
-
-    mesh.addTask([&mesh, remoteNodeId = newTree.nodeId]() {
+    auto remoteNodeId = newTree.nodeId;
+    mesh.addTask([&mesh, remoteNodeId]() {
       Log(logger::CONNECTION, "newConnectionTask():\n");
       Log(logger::CONNECTION, "newConnectionTask(): adding %u now= %u\n",
           remoteNodeId, mesh.getNodeTime());
@@ -186,7 +186,8 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
   }
 
   if (conn->updateSubs(newTree)) {
-    mesh.addTask([&mesh, nodeId = newTree.nodeId]() {
+    auto nodeId = newTree.nodeId;
+    mesh.addTask([&mesh, nodeId]() {
       mesh.changedConnectionCallbacks.execute(nodeId);
     });
   } else {

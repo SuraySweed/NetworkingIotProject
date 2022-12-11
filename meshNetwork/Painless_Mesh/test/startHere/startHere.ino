@@ -15,7 +15,12 @@
 
 // some gpio pin that is connected to an LED...
 // on my rig, this is 5, change to the right number of your LED.
-#define   LED             2       // GPIO number of connected LED, ON ESP-12 IS GPIO2
+#ifdef LED_BUILTIN
+#define LED LED_BUILTIN
+#else
+#define LED 2
+#endif
+
 #define SEND_FREQ 2 
 
 #define   BLINK_PERIOD    3000 // milliseconds until cycle repeat
@@ -54,7 +59,7 @@ void setup() {
   mesh.setDebugMsgTypes(ERROR | CONNECTION | DEBUG);  // set before init() so that you can see error messages
 
   mesh.init(MESH_SSID, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6);
-  mesh.initOTA("otatest");
+  mesh.initOTAReceive("otatest");
 
   mesh.setContainsRoot(true);
   
