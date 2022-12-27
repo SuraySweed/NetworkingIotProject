@@ -1,47 +1,36 @@
 #include "painlessMesh.h"
-#include <list>
 
 #define   MESH_PREFIX     "Mesh_username"
 #define   MESH_PASSWORD   "mesh_password"
 #define   MESH_PORT       5555
-#define THERE_IS_NO_ROOT -1
 
 Scheduler userScheduler; 
 painlessMesh mesh;
 
 void sendmsg() ;
-uint32_t getMeshTreeRootID();
 
-//Task taskSendmsg( TASK_SECOND * 1 , TASK_FOREVER, &sendmsg );
 Task taskSendmsg( TASK_SECOND * 1 , 3, &sendmsg );
 
-
-/*
-uint32_t getMeshTreeRootID() {
-  if (mesh.asNodeTree().root) {
-    return mesh.asNodeTree().nodeId;
-  }
-  for (auto node : mesh.asNodeTree().subs) {
-    if (node.root) {
-      return node.nodeId;
-    }
-  }
-  return THERE_IS_NO_ROOT;
-}
-*/
+bool isRecievedMsg = false;
+//uint32_t dest_id = 0;
 
 void sendmsg() {
-  String msg = "hey, my name is suray sweed, Node: ";
+  String msg = "hey all i recieved a msg but im not the root, my id is: ";
   msg += mesh.getNodeId();
-  uint32_t root_id = getMeshTreeRootID();
-  //uint32_t root_id = mesh.getNodeList().back();
-  mesh.sendSingle(root_id, msg);
+
+  mesh.sendBroadcast(msg);
+  Serial.printf("send successful\n");
+
+  
+  
   taskSendmsg.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));
 }
 
 
 void receivedCallback( uint32_t from, String &msg ) {
   Serial.printf("Received from %u: a message that contain: %s\n", from, msg.c_str());
+  taskSendmsg.enable();
+
 }
 
 void newConnectionCallback(uint32_t nodeId) {
@@ -61,35 +50,16 @@ void setup() {
   mesh.setDebugMsgTypes( ERROR | STARTUP );  
 
   mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
+  
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
-
+  Serial.printf("I am root?: %d \n", mesh.isRoot());
   userScheduler.addTask( taskSendmsg );
-  taskSendmsg.enable();
+  //taskSendmsg.enable();
 }
 
 void loop() {
   mesh.update();
-}
-
-uint32_t getMeshTreeRootID() {
-  //Serial.printf("is root? %d\n", mesh.isRoot());
-  if (mesh.isRoot()) {
-    return mesh.getNodeId();
-  }
-  //Serial.printf("is subs is empty? %d\n", mesh.subs.empty());
-
-  if (!mesh.subs.empty()) {
-    for (auto node : mesh.subs) {
-      if (node.get()) {
-        if (node.get()->root) {
-          return node.get()->nodeId;
-        }
-      }
-      return THERE_IS_NO_ROOT;
-    }
-  }
-  return THERE_IS_NO_ROOT;
 }

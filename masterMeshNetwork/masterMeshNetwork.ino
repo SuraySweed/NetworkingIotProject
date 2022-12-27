@@ -1,3 +1,5 @@
+// root code
+
 #include "painlessMesh.h"
 
 #define   MESH_PREFIX     "Mesh_username"
@@ -9,18 +11,33 @@ painlessMesh mesh;
 
 void sendmsg() ;
 
-Task taskSendmsg( TASK_SECOND * 1 , TASK_FOREVER, &sendmsg );
+Task taskSendmsg( TASK_SECOND * 1 , 3, &sendmsg );
+
+bool isRecievedMsg = false;
+//uint32_t dest_id = 0;
 
 void sendmsg() {
-  String msg = "This is a testing message from Node2  ";
+  String msg = "hey suray i recieved your msg couse im the root , my id is: ";
   msg += mesh.getNodeId();
-  mesh.sendBroadcast( msg );
+  
+  //if(isRecievedMsg)
+  //{
+
+  uint32_t dest_id = mesh.getNodeList().back();
+  mesh.sendSingle(dest_id, msg);
+  Serial.printf("send successful\n");
+  //}
+  
+  
   taskSendmsg.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));
 }
 
 
 void receivedCallback( uint32_t from, String &msg ) {
-  Serial.printf("Received from %u msg=%s\n", from, msg.c_str());
+  Serial.printf("Received from %u: a message that contain: %s\n", from, msg.c_str());
+  //isRecievedMsg = true;
+  taskSendmsg.enable();
+
 }
 
 void newConnectionCallback(uint32_t nodeId) {
@@ -40,13 +57,16 @@ void setup() {
   mesh.setDebugMsgTypes( ERROR | STARTUP );  
 
   mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
+  
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
-
+  Serial.printf("I am root?: %d \n", mesh.isRoot());
+  mesh.setRoot();
+  Serial.printf("I am root?: %d \n", mesh.isRoot());
   userScheduler.addTask( taskSendmsg );
-  taskSendmsg.enable();
+  //taskSendmsg.enable();
 }
 
 void loop() {
