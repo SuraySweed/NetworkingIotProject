@@ -6,36 +6,41 @@
 #define   MESH_PASSWORD   "mesh_password"
 #define   MESH_PORT       5555
 
+
+//const char* ssid = "HOTBOX 4-4E78-5GHz";
+//const char* password = "DV29QJWG3KN9";
+const char* ssid = "Suray Sweed";
+const char* password = "12345678";
+//const char* host = "192.168.181.1";
+//const char* host = WiFi.localIP().toString().c_str(); // pc ip
+const uint16_t PORT = 8820; 
+String message = "";
+
 Scheduler userScheduler; 
 painlessMesh mesh;
 
+// functions declerations
 void sendmsg() ;
 
-Task taskSendmsg( TASK_SECOND * 1 , 3, &sendmsg );
+Task taskSendmsg( TASK_SECOND * 1 , 3, &sendmsg);
 
-bool isRecievedMsg = false;
-//uint32_t dest_id = 0;
 
 void sendmsg() {
   String msg = "hey suray i recieved your msg couse im the root , my id is: ";
   msg += mesh.getNodeId();
   
-  //if(isRecievedMsg)
-  //{
-
   uint32_t dest_id = mesh.getNodeList().back();
   mesh.sendSingle(dest_id, msg);
   Serial.printf("send successful\n");
-  //}
-  
   
   taskSendmsg.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));
+  
 }
 
 
 void receivedCallback( uint32_t from, String &msg ) {
   Serial.printf("Received from %u: a message that contain: %s\n", from, msg.c_str());
-  //isRecievedMsg = true;
+  message = msg;
   taskSendmsg.enable();
 
 }
@@ -54,6 +59,8 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 
 void setup() {
   Serial.begin(115200);
+  
+  // mesh network part
   mesh.setDebugMsgTypes( ERROR | STARTUP );  
 
   mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
@@ -62,11 +69,15 @@ void setup() {
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
+
+  // set a root
   Serial.printf("I am root?: %d \n", mesh.isRoot());
   mesh.setRoot();
-  Serial.printf("I am root?: %d \n", mesh.isRoot());
+  Serial.printf("I am root?: %d\n", mesh.isRoot());
+
   userScheduler.addTask( taskSendmsg );
   //taskSendmsg.enable();
+
 }
 
 void loop() {
